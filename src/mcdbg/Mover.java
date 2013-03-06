@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * TODO: Add a queue to permit multiple threads waiting on the mover thread to
@@ -49,7 +50,7 @@ public class Mover extends Thread {
 	private boolean die = false;
 
 	private ConcurrentLinkedQueue<MoverConfig> moveQueue = new ConcurrentLinkedQueue<MoverConfig>();
-	private Semaphore queueSem = new Semaphore(1, true);
+	private ReentrantLock queueSem = new ReentrantLock(true);
 
 	private Semaphore jobSem = new Semaphore(0, true);
 	private Semaphore waitSem = new Semaphore(0, true);
@@ -86,14 +87,14 @@ public class Mover extends Thread {
 	private boolean pushMovement(MoverConfig movement) {
 		int pushAttempts = 0;
 		try {
-			queueSem.acquire();
+			queueSem.lockInterruptibly();
 		} catch (InterruptedException e) {
 			return false;
 		}
 		// Try to push the movement 10 times before giving up
 		while (!moveQueue.offer(movement) && pushAttempts < 10)
 			++pushAttempts;
-		queueSem.release();
+		queueSem.unlock();
 		// If we gave up, return false to indicate it
 		if (pushAttempts >= 10)
 			return false;
@@ -206,16 +207,16 @@ public class Mover extends Thread {
 				// Set the running flag to true for busy-waiting
 				running = true;
 
-				queueSem.acquire();
+				queueSem.lockInterruptibly();
 				if (!moveQueue.isEmpty() && !die) {
 					MoverConfig movement = moveQueue.poll();
-					queueSem.release();
+					queueSem.unlock();
 					assert (movement != null) : "moveQueue.poll() returned null when non-empty";
 					assert (movement.mode != null) : "invalid movement generated";
 
 					processMovement(movement);
 				} else {
-					queueSem.release();
+					queueSem.unlock();
 				}
 
 				// If we just did the last move in the queue, wake up the
@@ -262,16 +263,16 @@ public class Mover extends Thread {
 	public void resetQueue() throws InterruptedException {
 		// Block changes in the queue until the queue is finished
 		// resetting
-		queueSem.acquire();
+		queueSem.lockInterruptibly();
 		// Reset the job semaphore since there will be no more queued jobs
 		jobSem.drainPermits();
 		if (moveQueue.isEmpty()) {
-			queueSem.release();
+			queueSem.unlock();
 			return;
 		}
 
 		moveQueue.clear();
-		queueSem.release();
+		queueSem.unlock();
 	}
 
 	/**
@@ -291,9 +292,9 @@ public class Mover extends Thread {
 	 */
 	public boolean hasQueuedJobs() {
 		try {
-			queueSem.acquire();
+			queueSem.lockInterruptibly();
 			boolean result = !moveQueue.isEmpty();
-			queueSem.release();
+			queueSem.unlock();
 			return result;
 		} catch (InterruptedException e) {
 			// InterruptedException can only occur if the thread has been
@@ -310,9 +311,9 @@ public class Mover extends Thread {
 		// Get a lock on the queue to prevent changes while determining how many
 		// jobs there are
 		try {
-			queueSem.acquire();
+			queueSem.lockInterruptibly();
 			int result = moveQueue.size();
-			queueSem.release();
+			queueSem.unlock();
 			return result;
 		} catch (InterruptedException e) {
 			return 0;

@@ -12,10 +12,10 @@ public class Runner {
 				System.out.println("Adding move to queue: X=" + x + ", Y=" + y);
 				mover.move(x, y);
 				System.out.println("Adding delay to queue");
-				mover.delay(200);
+				mover.delay(1000);
 			}
 			// Wait for the mover to start some jobs
-			Thread.sleep(500);
+			Thread.sleep(2500);
 			System.out.println("Resetting queue...");
 			mover.resetQueue();
 
@@ -25,7 +25,7 @@ public class Runner {
 						+ y);
 				mover.moveTo(x, y);
 				System.out.println("Adding delay to queue");
-				mover.delay(200);
+				mover.delay(1000);
 			}
 			System.out.println("Queued moves: " + mover.numQueuedJobs());
 			System.out.println("Waiting for completion...");
